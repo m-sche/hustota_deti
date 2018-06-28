@@ -68,8 +68,8 @@ let config = {
 	},
 	hustota_hrist: {
 		min: 0,
-		max: 1500,
-		step: 150,
+		max: 3600,
+		step: 600,
 		legend: i => Math.round(i) + ' dětí / hřiště',
 		feature: 'DETI_HRISTE',
 	}
@@ -123,7 +123,6 @@ let pocetDeti = {};
 let pocetHrist = {};
 
 loadJSON('obyvatele.json').then(ob => {
-	console.log(ob);
 	for (let row of ob) {
 		pocetDeti[row.kod_zuj] = row['0-4'] + row['5-9'] + row['10-14'];
 		pocetHrist[row.kod_zuj] = row['pocetHrist'];
