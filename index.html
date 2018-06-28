@@ -63,10 +63,18 @@ let config = {
 		min: 30,
 		max: 1500,
 		step: 150,
-		legend: i => Math.round(i) + ' dětí / km²'
+		legend: i => Math.round(i) + ' dětí / km²',
+		feature: 'DETI_KM2',
+	},
+	hustota_hrist: {
+		min: 0,
+		max: 1500,
+		step: 150,
+		legend: i => Math.round(i) + ' dětí / hřiště',
+		feature: 'DETI_HRISTE',
 	}
 };
-let variant = 'hustota_deti';
+let variant = 'hustota_hrist';
 
 // Legenda
 
@@ -112,21 +120,27 @@ function getColor(d) {
 
 
 let pocetDeti = {};
+let pocetHrist = {};
 
-loadJSON('obyvatele.json').then(obyvatele => {
-	for (let row of obyvatele)
+loadJSON('obyvatele.json').then(ob => {
+	console.log(ob);
+	for (let row of ob) {
 		pocetDeti[row.kod_zuj] = row['0-4'] + row['5-9'] + row['10-14'];
+		pocetHrist[row.kod_zuj] = row['pocetHrist'];
+	}
 
 	return loadJSON('mestskecasti.json');
 }).then(geojson => {
 	// Pridat informaci o poctu edti na km^2
-	for (let f of geojson.features)
-		f.properties.DETI_KM2 = pocetDeti[f.properties.KOD_ZUJ] ? pocetDeti[f.properties.KOD_ZUJ] / (f.properties.SHAPE_Area / 1000000) : 0;
+	for (let f of geojson.features) {
+		let zuj = f.properties.KOD_ZUJ;
+		f.properties.DETI_KM2 = pocetDeti[zuj] ? pocetDeti[zuj] / (f.properties.SHAPE_Area / 1000000) : 0;
+		f.properties.DETI_HRISTE = pocetDeti[zuj] ? pocetDeti[zuj] / pocetHrist[zuj] : 0;
+	}
 
 	L.geoJson(geojson, {
 		style: feature => { return {
-			//fillColor: getColor(feature.properties.SHAPE_Area),	// Rozloha
-			fillColor: getColor(feature.properties.DETI_KM2),
+			fillColor: getColor(feature.properties[config[variant].feature]),	// deti / hriste
 			weight: 1,
 			opacity: 0.5,
 			color: 'black',
@@ -144,6 +158,12 @@ loadJSON('obyvatele.json').then(obyvatele => {
 
 			let popup = document.createElement('div');
 			popup.classList.add('popup');
+
+			// image
+			let image = new Image(300);
+			image.dataset.src = feature.properties.image.url;
+			image.float = 'right';
+			popup.appendChild(image);
 
 			// name
 			let b = document.createElement('b');
@@ -174,16 +194,18 @@ loadJSON('obyvatele.json').then(obyvatele => {
 			p.textContent = feature.properties.properties.map(prop => prop.title).join(', ');
 			popup.appendChild(p);
 
-			// image
-			let image = new Image(300);
-			image.dataset.src = feature.properties.image.url;
-			popup.appendChild(image);
 
 
 			marker.bindPopup(popup, {keepInView: true});
 			marker.on('popupopen', ev => {
 				let img = ev.popup._content.querySelector('img');
 				img.src = img.dataset.src;	// lazy-load obrazek
+			})
+			marker.on('mouseover', ev => {
+				marker.setRadius(20);
+			})
+			marker.on('mouseout', ev => {
+				marker.setRadius(10);
 			})
 			return marker;
 		},
