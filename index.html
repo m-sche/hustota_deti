@@ -31,6 +31,20 @@
 	float: left;
 	margin-right: 8px;
 }
+
+.legend button {
+	padding: 6px 8px;
+	margin: 2px 2px;
+	color: black;
+	background: rgb(150, 220, 190);
+	border: 2px solid rgb(0, 200, 126);
+	border-radius: 4px;
+	font-weight: bold;
+}
+
+.legend button:hover {
+	background: rgb(0, 200, 126);
+}
 </style>
 
 
@@ -46,7 +60,7 @@ var map = L.map('map').setView([50.08, 14.45], 12);
 L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token={accessToken}', {
 	maxZoom: 17,
 	minZoom: 10,
-	attribution: '<a href="https://www.mapbox.com/maps/streets/">Mapbox Streets</a> | <a href="http://openstreetmap.org">Openstreetmap</a> contributors | <a href="http://www.hristepraha.cz">Hřiště Praha</a>',
+	attribution: '<a href="https://www.mapbox.com/maps/streets/">Mapbox Streets</a> | <a href="http://openstreetmap.org">Openstreetmap</a> contributors | <a href="https://www.czso.cz/">Český statistický úřad</a> | <a href="https://www.arcdata.cz">ARCDATA PRAHA</a>', // | <a href="http://www.hristepraha.cz">Hřiště Praha</a>',
 	id: 'mapbox.streets',
 	accessToken: 'pk.eyJ1IjoibS1zY2hlIiwiYSI6ImNqaXk4dzcyZzA3Yngza21seGIxb2V2aXMifQ.jADfF9Hz3v15o4Iuvnyu4w'
 }).addTo(map);
@@ -59,42 +73,64 @@ L.control.scale({imperial: false, maxWidth: 200}).addTo(map);
 // Rozlohy jsou v rozsahu 5,5 M -- 41,5 M
 // Hustota deti jsou v rozsahu 30 -- 1500 M
 let config = {
-	hustota_deti: {
+	'DETI_KM2': {
 		min: 30,
 		max: 1500,
 		step: 150,
 		legend: i => Math.round(i) + ' dětí / km²',
-		feature: 'DETI_KM2',
 	},
-	hustota_hrist: {
+	'DETI_HRISTE': {
 		min: 0,
 		max: 660,
-		step: 120,
+		step: 110,
 		legend: i => Math.round(i) + ' dětí / hřiště',
-		feature: 'DETI_HRISTE',
+	},
+	'HRISTE_KM2': {
+		min: 1,
+		max: 7,
+		step: 1,
+		legend: i => Math.round(i) + ' hřišť / km²',
 	}
 };
-let variant = 'hustota_hrist';
+let variant = 'DETI_HRISTE';
 
-// Legenda
 
-var legend = L.control({position: 'bottomright'});
 
-legend.onAdd = map => {
+// Cudliky
+
+var controls = L.control({position: 'topright'});
+
+controls.onAdd = map => {
 	let div = L.DomUtil.create('div', 'legend');
+	let button;
 
-	for (let i = config[variant].min; i <= config[variant].min + config[variant].max; i += config[variant].step) {
-		let box = document.createElement('span');
-		box.style.background = getColor(i);
-		div.appendChild(box);
-		div.appendChild(document.createTextNode(config[variant].legend(i)));
-		div.appendChild(document.createElement('br'));
+	let defs = [{
+		text: 'Dětí / km²',
+		variant: 'DETI_KM2'
+	}, {
+		text: 'Dětí / hřiště',
+		variant: 'DETI_HRISTE'
+	}, {
+		text: 'Hřišť / km²',
+		variant: 'HRISTE_KM2'
+	}];
+
+	for (let def of defs) {
+		button = document.createElement('button');
+		button.textContent = def.text,
+		button.addEventListener('click', () => {
+			variant = def.variant;
+			drawMCasti(vsechnycasti);
+			drawHriste(vsechnahriste);
+			drawLegend();
+		});
+		div.appendChild(button);
 	}
 
-    return div;
+	return div;
 };
 
-legend.addTo(map);
+controls.addTo(map);
 
 // Data
 
@@ -104,9 +140,8 @@ function loadJSON(filename) {
 		xhr.overrideMimeType('application/json');
 		xhr.open('GET', filename, true);
 		xhr.onreadystatechange = () => {
-			if (xhr.readyState == 4 && xhr.status == '200') {
+			if (xhr.readyState == 4 && xhr.status == '200')
 				resolve(JSON.parse(xhr.responseText));
-			}
 		};
 		xhr.send(null);
 	});
@@ -114,13 +149,74 @@ function loadJSON(filename) {
 
 function getColor(d) {
 	let norm = (d - config[variant].min) / (config[variant].max - config[variant].min);	// 0 -- 1
+	if (isNaN(d))
+		return 'darkgray';
 	return 'rgb(' + (norm < 0.5 ? [norm * 256 * 2, 200, 126 - norm * 255] : [255 + 126 - norm * 255, 200 + 126 - norm * 255, 0]).join(', ') + ')';
 }
 
+// Leaflet objekty
+let mapHriste;
+let mapMCasti;
+let legend;
 
-let pocetDeti = {};
-let vsechnahriste;
-let pocetHrist = {};
+function drawHriste(vsechnahriste) {
+	if (mapHriste)
+		map.removeLayer(mapHriste)
+	mapHriste = L.geoJson(vsechnahriste, {
+		pointToLayer: (feature, latlng) => {
+			const size = 5;
+			let marker = new L.CircleMarker(latlng, {radius: size, opacity: 0.8, weight: 2, color: 'white', fillColor: 'transparent'});
+
+			marker.on('mouseover', ev => {
+				marker.setRadius(size * 1.5);
+			})
+			marker.on('mouseout', ev => {
+				marker.setRadius(size);
+			})
+			return marker;
+		},
+	}).addTo(map);
+}
+
+function drawMCasti(mcasti) {
+	if (mapMCasti)
+		map.removeLayer(mapMCasti)
+	mapMCasti = L.geoJson(mcasti, {
+		style: feature => { return {
+			fillColor: getColor(feature.properties[variant]),	// deti / hriste
+			weight: 1,
+			opacity: 0.5,
+			color: 'black',
+			fillOpacity: 0.5
+		}}
+	}).addTo(map);
+}
+
+function drawLegend() {
+	if (legend)
+		legend.remove();
+
+	legend = L.control({position: 'bottomright'});
+	legend.onAdd = map => {
+		let div = L.DomUtil.create('div', 'legend');
+
+		for (let i = config[variant].min; i <= config[variant].max; i += config[variant].step) {
+			let box = document.createElement('span');
+			box.style.background = getColor(i);
+			div.appendChild(box);
+			div.appendChild(document.createTextNode(config[variant].legend(i)));
+			div.appendChild(document.createElement('br'));
+		}
+
+		return div;
+	};
+	legend.addTo(map);
+}
+
+let pocetDeti = {};	// ZUJ -> pocet
+let vsechnahriste;	// GeoJSON
+let vsechnycasti;	// GeoJSON
+let pocetHrist = {};	// ZUJ -> pocet
 
 loadJSON('obyvatele.json').then(ob => {
 	for (let row of ob)
@@ -139,38 +235,18 @@ loadJSON('obyvatele.json').then(ob => {
 
 	return loadJSON('mestskecasti.geojson');
 }).then(geojson => {
+	vsechnycasti = geojson;
+
 	for (let f of geojson.features) {
 		let zuj = f.properties.KOD_ZUJ;
 		f.properties.DETI_KM2 = pocetDeti[zuj] ? pocetDeti[zuj] / (f.properties.SHAPE_Area / 1000000) : 0;
 		f.properties.DETI_HRISTE = pocetDeti[zuj] ? pocetDeti[zuj] / pocetHrist[zuj] : 0;
+		f.properties.HRISTE_KM2 = pocetHrist[zuj] / (f.properties.SHAPE_Area / 1000000);
 	}
 
-	L.geoJson(geojson, {
-		style: feature => { return {
-			fillColor: getColor(feature.properties[config[variant].feature]),	// deti / hriste
-			weight: 1,
-			opacity: 0.5,
-			color: 'black',
-			fillOpacity: 0.5
-		}}
-	}).addTo(map);
-
-	// Hriste vykresli az po mestskych castech
-	L.geoJson(vsechnahriste, {
-		pointToLayer: (feature, latlng) => {
-			const size = 6;
-			let marker = new L.CircleMarker(latlng, {radius: size, opacity: 0.8, weight: 2, color: 'white', fillColor: 'transparent'});
-
-			marker.on('mouseover', ev => {
-				marker.setRadius(size * 1.5);
-			})
-			marker.on('mouseout', ev => {
-				marker.setRadius(size);
-			})
-			return marker;
-		},
-	}).addTo(map);
-
+	drawMCasti(vsechnycasti);
+	drawHriste(vsechnahriste); // Hriste vykresli az po mestskych castech
+	drawLegend();
 /*
 	return loadJSON('playgrounds.geojson');
 }).then(geojson => {
