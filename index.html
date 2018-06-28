@@ -68,8 +68,8 @@ let config = {
 	},
 	hustota_hrist: {
 		min: 0,
-		max: 3600,
-		step: 600,
+		max: 660,
+		step: 120,
 		legend: i => Math.round(i) + ' dětí / hřiště',
 		feature: 'DETI_HRISTE',
 	}
@@ -114,23 +114,31 @@ function loadJSON(filename) {
 
 function getColor(d) {
 	let norm = (d - config[variant].min) / (config[variant].max - config[variant].min);	// 0 -- 1
-
-	return 'rgb(' + (norm < 0.5 ? [126 + norm * 256, 200, 126 - norm * 255] : [255 + 126 - norm * 255, 200 + 126 - norm * 255, 0]).join(', ') + ')';
+	return 'rgb(' + (norm < 0.5 ? [norm * 256 * 2, 200, 126 - norm * 255] : [255 + 126 - norm * 255, 200 + 126 - norm * 255, 0]).join(', ') + ')';
 }
 
 
 let pocetDeti = {};
+let vsechnahriste;
 let pocetHrist = {};
 
 loadJSON('obyvatele.json').then(ob => {
-	for (let row of ob) {
+	for (let row of ob)
 		pocetDeti[row.kod_zuj] = row['0-4'] + row['5-9'] + row['10-14'];
-		pocetHrist[row.kod_zuj] = row['pocetHrist'];
+
+	return loadJSON('osmplay.geojson');
+}).then(geojson => {
+	vsechnahriste = geojson;
+
+	for (let hriste of geojson.features) {
+		if (pocetHrist[hriste.properties.zuj])
+			pocetHrist[hriste.properties.zuj]++;
+		else
+			pocetHrist[hriste.properties.zuj] = 1;
 	}
 
-	return loadJSON('mestskecasti.json');
+	return loadJSON('mestskecasti.geojson');
 }).then(geojson => {
-	// Pridat informaci o poctu edti na km^2
 	for (let f of geojson.features) {
 		let zuj = f.properties.KOD_ZUJ;
 		f.properties.DETI_KM2 = pocetDeti[zuj] ? pocetDeti[zuj] / (f.properties.SHAPE_Area / 1000000) : 0;
@@ -147,11 +155,28 @@ loadJSON('obyvatele.json').then(ob => {
 		}}
 	}).addTo(map);
 
-	return loadJSON('playgrounds.json');
+	// Hriste vykresli az po mestskych castech
+	L.geoJson(vsechnahriste, {
+		pointToLayer: (feature, latlng) => {
+			const size = 6;
+			let marker = new L.CircleMarker(latlng, {radius: size});
+
+			marker.on('mouseover', ev => {
+				marker.setRadius(size * 1.5);
+			})
+			marker.on('mouseout', ev => {
+				marker.setRadius(size);
+			})
+			return marker;
+		},
+	}).addTo(map);
+
+/*
+	return loadJSON('playgrounds.geojson');
 }).then(geojson => {
 	L.geoJson(geojson, {
 		pointToLayer: (feature, latlng) => {
-			let marker = new L.CircleMarker(latlng, {radius: 10});
+			let marker = new L.CircleMarker(latlng, {radius: 10, color: 'tomato'});
 
 			// Vykresli popup bublinu s popisem hriste
 
@@ -201,7 +226,7 @@ loadJSON('obyvatele.json').then(ob => {
 				img.src = img.dataset.src;	// lazy-load obrazek
 			})
 			marker.on('mouseover', ev => {
-				marker.setRadius(20);
+				marker.setRadius(15);
 			})
 			marker.on('mouseout', ev => {
 				marker.setRadius(10);
@@ -209,6 +234,7 @@ loadJSON('obyvatele.json').then(ob => {
 			return marker;
 		},
 	}).addTo(map);
+	*/
 });
 
 
