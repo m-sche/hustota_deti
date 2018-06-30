@@ -90,6 +90,12 @@ let config = {
 		max: 7,
 		step: 1,
 		legend: i => Math.round(i) + ' hřišť / km²',
+	},
+	'VAZENE_DETI_HRISTE': {
+		min: 0.1,
+		max: 3.8,
+		step: 0.5,
+		legend: i => Math.round(i * 10) / 10 + ' mil. dětí² / hřiště',
 	}
 };
 let variant = 'DETI_HRISTE';
@@ -105,14 +111,17 @@ controls.onAdd = map => {
 	let button;
 
 	let defs = [{
-		text: 'Dětí / km²',
-		variant: 'DETI_KM2'
-	}, {
 		text: 'Dětí / hřiště',
 		variant: 'DETI_HRISTE'
 	}, {
+		text: 'Dětí / km²',
+		variant: 'DETI_KM2'
+	}, {
 		text: 'Hřišť / km²',
 		variant: 'HRISTE_KM2'
+	}, {
+		text: 'Dětí² / hřiště',
+		variant: 'VAZENE_DETI_HRISTE'
 	}];
 
 	for (let def of defs) {
@@ -242,75 +251,12 @@ loadJSON('obyvatele.json').then(ob => {
 		f.properties.DETI_KM2 = pocetDeti[zuj] ? pocetDeti[zuj] / (f.properties.SHAPE_Area / 1000000) : 0;
 		f.properties.DETI_HRISTE = pocetDeti[zuj] ? pocetDeti[zuj] / pocetHrist[zuj] : 0;
 		f.properties.HRISTE_KM2 = pocetHrist[zuj] / (f.properties.SHAPE_Area / 1000000);
+		f.properties.VAZENE_DETI_HRISTE = pocetDeti[zuj] ? pocetDeti[zuj] * pocetDeti[zuj] / pocetHrist[zuj] / 1000000 : 0;
 	}
 
 	drawMCasti(vsechnycasti);
 	drawHriste(vsechnahriste); // Hriste vykresli az po mestskych castech
 	drawLegend();
-/*
-	return loadJSON('playgrounds.geojson');
-}).then(geojson => {
-	L.geoJson(geojson, {
-		pointToLayer: (feature, latlng) => {
-			let marker = new L.CircleMarker(latlng, {radius: 10, color: 'tomato'});
-
-			// Vykresli popup bublinu s popisem hriste
-
-			let popup = document.createElement('div');
-			popup.classList.add('popup');
-
-			// image
-			let image = new Image(300);
-			image.dataset.src = feature.properties.image.url;
-			image.float = 'right';
-			popup.appendChild(image);
-
-			// name
-			let b = document.createElement('b');
-			b.textContent = feature.properties.name;
-			popup.appendChild(b);
-			popup.appendChild(document.createElement('br'));
-
-			// address
-			let span = document.createElement('span');
-			span.textContent = feature.properties.address;
-			popup.appendChild(span);
-			popup.appendChild(document.createElement('br'));
-
-			// url
-			let a = document.createElement('a');
-			a.href = feature.properties.url;
-			a.textContent = feature.properties.url;
-			popup.appendChild(a);
-			popup.appendChild(document.createElement('br'));
-
-			// perex + content
-			let p = document.createElement('p');
-			p.innerHTML = feature.properties.perex + ' ' + feature.properties.content;
-			popup.appendChild(p);
-
-			// properties
-			p = document.createElement('i');
-			p.textContent = feature.properties.properties.map(prop => prop.title).join(', ');
-			popup.appendChild(p);
-
-
-
-			marker.bindPopup(popup, {keepInView: true});
-			marker.on('popupopen', ev => {
-				let img = ev.popup._content.querySelector('img');
-				img.src = img.dataset.src;	// lazy-load obrazek
-			})
-			marker.on('mouseover', ev => {
-				marker.setRadius(15);
-			})
-			marker.on('mouseout', ev => {
-				marker.setRadius(10);
-			})
-			return marker;
-		},
-	}).addTo(map);
-	*/
 });
 
 
